@@ -1,0 +1,2 @@
+C:/Users/Asus/Documents/Graphics_Proj/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/Asus/Documents/Graphics_Proj/build/CMakeFiles/ZERO_CHECK.dir
