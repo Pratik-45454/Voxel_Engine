@@ -52,7 +52,7 @@ struct FlattenedNode {
     int childIndices[8] = {-1};  // Indices of children in the flattened array
     glm::vec4 color = glm::vec4( 1.0f , 0.0f , 0.0f , 1.0f); // Color of the node
 };
-
+std::vector<FlattenedNode> m_nodes;
 class SparseVoxelOctree {
 public:
     SparseVoxelOctree(int size, int maxDepth);
@@ -64,7 +64,7 @@ private:
     
     int m_size;
     int m_maxDepth;
-    std::vector<FlattenedNode> m_nodes;  // Flattened array of nodes
+      // Flattened array of nodes
 };
 
 SparseVoxelOctree::SparseVoxelOctree(int size, int maxDepth) : m_size(size), m_maxDepth(maxDepth) {}
@@ -208,12 +208,11 @@ int main()
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32F, SCR_WIDTH, SCR_HEIGHT);
     glBindImageTexture(0, texture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
 
-    // // Declare the SSBO for ray marching results
-    // GLuint ssbo;
-    // size_t ssboSize = SCR_WIDTH * SCR_HEIGHT * sizeof(float) * 2;
+    GLuint ssbo;
+    glGenBuffers(1, &ssbo);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, m_nodes.size() * sizeof(FlattenedNode), m_nodes.data(), GL_STATIC_DRAW);
 
-    // // Initialize SSBO
-    // computeShader.createSSBO(ssbo, 0, ssboSize, nullptr, GL_DYNAMIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);

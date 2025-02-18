@@ -3,6 +3,16 @@
 layout(local_size_x = 16, local_size_y = 16) in;
 layout (rgba32f, binding = 0) uniform image2D resultImage;
 
+struct FlattenedNode {
+    bool IsLeaf;
+    int childIndices[8];
+    vec4 color;
+};
+
+layout(std430, binding = 0) buffer NodeBuffer {
+    FlattenedNode nodes[];
+};
+
 uniform vec2 iResolution;
 uniform mat4 viewMatrix;
 uniform vec3 cameraPos;
