@@ -7,6 +7,19 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <camera.h>
+#include <vector>
+#include <cmath>
+#include <fastnoise/fastnoise.h>
+
+
+float generateNoise(int x, int z, float scale) {
+    // Generate a simple noise function using sine and cosine for both axes
+    float noiseX = std::sin(x * scale);
+    float noiseZ = std::cos(z * scale);
+    
+    // Combine the two to create 2D noise
+    return (noiseX + noiseZ) * 0.5f; // Normalize the result between -1 and 1
+}
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -31,6 +44,73 @@ float fov = 45.0f;
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+
+// Sparse Voxel Octree
+
+struct FlattenedNode {
+    bool IsLeaf;
+    int childIndices[8] = {-1};  // Indices of children in the flattened array
+    glm::vec4 color = glm::vec4( 1.0f , 0.0f , 0.0f , 1.0f); // Color of the node
+};
+
+class SparseVoxelOctree {
+public:
+    SparseVoxelOctree(int size, int maxDepth);
+    
+    void Insert(glm::vec3 point, glm::vec4 color);
+    
+private:
+    void InsertImpl(int nodeIndex, glm::vec3 point, glm::vec4 color, glm::vec3 position, int depth);
+    
+    int m_size;
+    int m_maxDepth;
+    std::vector<FlattenedNode> m_nodes;  // Flattened array of nodes
+};
+
+SparseVoxelOctree::SparseVoxelOctree(int size, int maxDepth) : m_size(size), m_maxDepth(maxDepth) {}
+
+void SparseVoxelOctree::Insert(glm::vec3 point, glm::vec4 color) {
+    InsertImpl(0, point, color, glm::vec3(0), 0);
+}
+
+void SparseVoxelOctree::InsertImpl(int nodeIndex, glm::vec3 point, glm::vec4 color, glm::vec3 position, int depth) {
+    // Ensure that the node exists
+    if (nodeIndex >= m_nodes.size()) {
+        m_nodes.push_back(FlattenedNode());
+    }
+
+    FlattenedNode &node = m_nodes[nodeIndex];
+
+    node.color = color;
+    if (depth == m_maxDepth) {
+        node.IsLeaf = true;
+        return;
+    }
+
+    float size = m_size / std::exp2(depth);
+
+    glm::vec3 childPos = {
+        point.x >= (size * position.x) + (size / 2.f),
+        point.y >= (size * position.y) + (size / 2.f),
+        point.z >= (size * position.z) + (size / 2.f)
+    };
+
+    int childIndex = ((int)childPos.x << 0) | ((int)childPos.y << 1) | ((int)childPos.z << 2);
+
+    // Update child index in the node
+    if (node.childIndices[childIndex] == -1) {  // If child hasn't been created yet
+        node.childIndices[childIndex] = m_nodes.size();  // Add child to the flattened array
+        m_nodes.push_back(FlattenedNode());  // Create child node
+    }
+
+    position = {
+        ((int)position.x << 1) | (int)childPos.x,
+        ((int)position.y << 1) | (int)childPos.y,
+        ((int)position.z << 1) | (int)childPos.z
+    };
+
+    InsertImpl(node.childIndices[childIndex], point, color, position, depth + 1);
+}
 
 int main()
 {
@@ -83,6 +163,27 @@ int main()
             translations[index++] = glm::vec3(translation,0);
         }
     }
+
+    //generating the noise and fitting it into the octree
+    SparseVoxelOctree octree(10, 4);
+
+    for (int x = 0; x < 100; x++) {
+        for (int z = 0; z < 100; z++) {
+            int max_height = 10;
+    
+            // Scale factor for the sine-based noise
+            float scale = 0.1f; // Adjust this for smoother or more "chaotic" noise
+            float noise_value = generateNoise(x, z, scale);
+            
+            // Convert noise to a height value, ensure positive values for height
+            int height = static_cast<int>(max_height / 2 * (noise_value + 1.0f)); // Normalize to [0, max_height]
+            
+            for (int y = 0; y < max_height + height; ++y) {
+                octree.Insert(glm::vec3(x, y, z), glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+            }
+        }
+    }
+
     
     glm::vec3 minBound = glm::vec3(-11.0f, -11.0f, 1.0f);
     glm::vec3 maxBound = glm::vec3(9.0f, 9.0f, -1.0f);
@@ -119,7 +220,6 @@ int main()
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // Set the translations for each cube
-
 
     // Main rendering loop
     while (!glfwWindowShouldClose(window))

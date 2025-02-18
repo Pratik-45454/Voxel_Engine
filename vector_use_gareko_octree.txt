@@ -1,0 +1,56 @@
+struct FlattenedNode {
+    bool IsLeaf;
+    int childIndices[8];  // Indices of children in the flattened array
+    VoxelData data;
+};
+
+class SparseVoxelOctree {
+public:
+    SparseVoxelOctree(int size, int maxDepth);
+
+    void Insert(Vector3f point, Color color);
+
+private:
+    void InsertImpl(int nodeIndex, Vector3f point, Color color, Vector3i position, int depth);
+
+    int m_size;
+    int m_maxDepth;
+    std::vector<FlattenedNode> m_nodes;  // Flattened array of nodes
+};
+
+void SparseVoxelOctree::InsertImpl(int nodeIndex, Vector3f point, Color color, Vector3i position, int depth) {
+    // Ensure that the node exists
+    if (nodeIndex >= m_nodes.size()) {
+        m_nodes.push_back(FlattenedNode());
+    }
+
+    FlattenedNode &node = m_nodes[nodeIndex];
+
+    node.data.color = color;
+    if (depth == m_maxDepth) {
+        node.IsLeaf = true;
+        return;
+    }
+
+    float size = m_size / std::exp2(depth);
+
+    Vector3i childPos = {
+        point.x >= (size * position.x) + (size / 2.f),
+        point.y >= (size * position.y) + (size / 2.f),
+        point.z >= (size * position.z) + (size / 2.f)
+    };
+
+    int childIndex = (childPos.x << 0) | (childPos.y << 1) | (childPos.z << 2);
+
+    // Update child index in the node
+    if (node.childIndices[childIndex] == -1) {  // If child hasn't been created yet
+        node.childIndices[childIndex] = m_nodes.size();  // Add child to the flattened array
+        m_nodes.push_back(FlattenedNode());  // Create child node
+    }
+
+    int newPosition = (position.x << 1) | childPos.x;
+    newPosition = (newPosition << 1) | childPos.y;
+    newPosition = (newPosition << 1) | childPos.z;
+
+    InsertImpl(node.childIndices[childIndex], point, color, position, depth + 1);
+}

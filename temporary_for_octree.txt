@@ -1,0 +1,50 @@
+struct Node {
+    bool IsLeaf;
+    Node *children[8];
+    VoxelData data;
+}
+
+class SparseVoxelOctree {
+    SparseVoxelOctree(int size , int maxDepth);
+
+    void Insert(Vector3f point , Color color);
+
+    private:
+
+    void InsertImpl(Node **node , Vector3f point , Color color , Vector3i position , int depth);
+
+    int m_size;
+    int m_maxdepth;
+    Node *m_Root;
+};
+
+
+void SparseVoxelOctree::InsertImpl (Node **node , Vector3f point , Color color , Vector3i position , int depth){
+    if(*node == nullptr){
+        *node = new Node;
+    }
+
+    (*node)->data.color = color;
+    if( depth == m_maxdepth){
+        (*node)->IsLeaf = true;
+        return;
+    }
+
+    float size = m_size/std::exp2(depth)
+
+    Vector3i childPos = {
+         point.x >= (size*position.x) + (size/2.f),
+         point.y >= (size*position.y) + (size/2.f),
+         point.z >= (size*position.z) + (size/2.f)
+    };
+
+    int childIndex = (childPos.x << 0) | (childPos.y << 1) | (childPos.z << 2);
+
+    position = {
+        (position.x << 1) | childPos.x,
+        (position.y << 1) | childPos.y,
+        (position.z << 1) | childPos.z
+    };
+
+    Insert(&(*node)->children[childIndex] , point , color , position , ++depth);
+}
