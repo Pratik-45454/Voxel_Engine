@@ -10,8 +10,6 @@
 #include <vector>
 #include <cmath>
 #include <fastnoise/fastnoise.h>
-
-
 float generateNoise(int x, int z, float scale) {
     // Generate a simple noise function using sine and cosine for both axes
     float noiseX = std::sin(x * scale);
@@ -48,11 +46,12 @@ float lastFrame = 0.0f;
 // Sparse Voxel Octree
 
 struct FlattenedNode {
-    bool IsLeaf;
+    bool IsLeaf = false;
     int childIndices[8] = {-1};  // Indices of children in the flattened array
     glm::vec4 color = glm::vec4( 1.0f , 0.0f , 0.0f , 1.0f); // Color of the node
 };
 std::vector<FlattenedNode> m_nodes;
+
 class SparseVoxelOctree {
 public:
     SparseVoxelOctree(int size, int maxDepth);
@@ -61,10 +60,9 @@ public:
     
 private:
     void InsertImpl(int nodeIndex, glm::vec3 point, glm::vec4 color, glm::vec3 position, int depth);
-    
     int m_size;
     int m_maxDepth;
-      // Flattened array of nodes
+    
 };
 
 SparseVoxelOctree::SparseVoxelOctree(int size, int maxDepth) : m_size(size), m_maxDepth(maxDepth) {}
@@ -150,22 +148,22 @@ int main()
          1.0f,  1.0f
     };
 
-    glm::vec3 translations[100];
-    int index = 0;
-    float offset = 2.5f;
-    for(int y = -5; y < 5; y += 1)
-    {
-        for(int x = -5; x < 5; x += 1)
-        {
-            glm::vec2 translation;
-            translation.x = (float)x  * offset;
-            translation.y = (float)y  * offset;
-            translations[index++] = glm::vec3(translation,0);
-        }
-    }
+    // glm::vec3 translations[100];
+    // int index = 0;
+    // float offset = 2.5f;
+    // for(int y = -5; y < 5; y += 1)
+    // {
+    //     for(int x = -5; x < 5; x += 1)
+    //     {
+    //         glm::vec2 translation;
+    //         translation.x = (float)x  * offset;
+    //         translation.y = (float)y  * offset;
+    //         translations[index++] = glm::vec3(translation,0);
+    //     }
+    // }
 
     //generating the noise and fitting it into the octree
-    SparseVoxelOctree octree(10, 4);
+    SparseVoxelOctree octree(10, 7);
 
     for (int x = 0; x < 100; x++) {
         for (int z = 0; z < 100; z++) {
@@ -185,8 +183,8 @@ int main()
     }
 
     
-    glm::vec3 minBound = glm::vec3(-11.0f, -11.0f, 1.0f);
-    glm::vec3 maxBound = glm::vec3(9.0f, 9.0f, -1.0f);
+    glm::vec3 minBound = glm::vec3(0, 0, 0);
+    glm::vec3 maxBound = glm::vec3(10.0f, 10.0f, 10.0f);
 
     glm::vec3 size_half = glm::vec3(1.0f);
 
@@ -210,15 +208,16 @@ int main()
 
     GLuint ssbo;
     glGenBuffers(1, &ssbo);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
     glBufferData(GL_SHADER_STORAGE_BUFFER, m_nodes.size() * sizeof(FlattenedNode), m_nodes.data(), GL_STATIC_DRAW);
-
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, ssbo);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-    // Set the translations for each cube
+
+    
 
     // Main rendering loop
     while (!glfwWindowShouldClose(window))
@@ -228,6 +227,7 @@ int main()
         lastFrame = currentFrame;
         processInput(window);        
         computeShader.use();
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, ssbo);
         computeShader.dispatch((SCR_WIDTH ) / 16, (SCR_HEIGHT ) / 16, 1);
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         glfwSetCursorPosCallback(window, mouse_callback);
@@ -245,10 +245,10 @@ int main()
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
         // Use the compute shader first to set up the scene
-        for(unsigned int i = 0; i < 100; i++)
-        {
-            computeShader.setVec3(("cubeCentres[" + std::to_string(i) + "]"), translations[i]);
-        }
+        // for(unsigned int i = 0; i < 100; i++)
+        // {
+        //     computeShader.setVec3(("cubeCentres[" + std::to_string(i) + "]"), translations[i]);
+        // }
 
         computeShader.setInt("numCubes", 100);
 
@@ -266,7 +266,11 @@ int main()
         computeShader.setMat4("rot", trans);
 
         // Dispatch compute shader
-        
+        for (int i = 0; i < m_nodes.size(); ++i) {
+        std::cout << "Node " << i << ": IsLeaf = " << m_nodes[i].IsLeaf << std::endl;
+        }
+
+        std::cout<<"hello";
         // Bind the SSBO for use in the fragment shader
         // computeShader.setSSBO(0, ssbo);
 
