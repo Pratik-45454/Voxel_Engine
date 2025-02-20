@@ -10,14 +10,27 @@
 #include <vector>
 #include <cmath>
 
-// A dedicated terrain noise function using basic sine/cosine waves.
+#include <cmath>
+
 float generateTerrainNoise(float x, float z) {
-    // Adjust these constants to control the terrain frequency and amplitude.
-    float freq = 0.05f;
-    float amp  = 20.0f;
-    // Noise value in range [0, amp]
-    return (std::sin(x * freq) * std::cos(z * freq) + 1.0f) * 0.5f * amp;
+    float height = 0.0f;
+    float freq = 0.02f;  // Lower base frequency for larger mountains
+    float amp = 50.0f;   // Increased amplitude for taller peaks
+    float persistence = 0.4f; // Controls how quickly amplitudes decrease
+    int octaves = 6; // More octaves for extra detail
+
+    for (int i = 0; i < octaves; ++i) {
+        height += std::sin(x * freq) * std::cos(z * freq) * amp;
+        freq *= 2.0f;  // Increase frequency each octave
+        amp *= persistence;  // Decrease amplitude each octave
+    }
+    
+    // Exaggerate mountains with power-based scaling
+    height = std::pow(height * 0.03f, 3.0f);  // Cubic transformation for sharper peaks
+
+    return height * 10.0f;  // Scale final height appropriately
 }
+
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
@@ -130,36 +143,38 @@ int main() {
          1.0f,  1.0f
     };
 
-// Setup octree for terrain.
-    int octreeSize = 500;  // The world spans from 0 to 100 along x and z.
-    int maxDepth = 8;      // Adjust as needed; note that higher depths yield smaller voxels.
+    int octreeSize = 1000;     // Corrected to match 0-100 world range
+    int maxDepth = 8;
     SparseVoxelOctree octree(octreeSize, maxDepth);
-    m_nodes.reserve(1000000); // Pre-reserve enough memory to reduce reallocations.
-
-// Compute the current voxel size.
-    float voxelSize = octreeSize / float(1 << maxDepth); // = octreeSize / (2^maxDepth)
-
-    // Generate terrain: for each (x, z) coordinate, compute a terrain height using noise,
-    // then fill the column from y = 0 up to that height, stepping in increments of voxelSize.
-    for (float x = 0.0f; x < octreeSize; x += voxelSize) {
-        for (float z = 0.0f; z < octreeSize; z += voxelSize) {
-            // Compute the terrain height at this (x, z) location.
-            float noiseHeight = generateTerrainNoise(x, z); // returns height in world units
-            // Fill voxels from y=0 up to noiseHeight, using the same voxel step.
-            for (float y = 0.0f; y < noiseHeight; y += voxelSize) {
+    m_nodes.reserve(3000000);
+    
+    float voxelSize = octreeSize / static_cast<float>(1 << maxDepth);
+    const int numSteps = 1 << maxDepth; // 2^maxDepth steps per axis
+    
+    // Integer-based iteration to avoid floating-point errors
+    for (int xi = 0; xi < numSteps; xi++) {
+        float x = xi * voxelSize;
+        for (int zi = 0; zi < numSteps; zi++) {
+            float z = zi * voxelSize;
+            float noiseHeight = generateTerrainNoise(x, z);
+            
+            // Ensure at least one voxel and prevent rounding errors
+            int ySteps = std::max(1, static_cast<int>(std::ceil((noiseHeight + 0.5f * voxelSize) / voxelSize)));
+    
+            for (int yi = 0; yi < ySteps; yi++) {
+                float y = yi * voxelSize;
+                
+                // Ensure y is exactly aligned with the voxel grid
+                y = std::round(y / voxelSize) * voxelSize;
+    
                 glm::vec3 pos(x, y, z);
-                // Choose a color based on height: lower voxels are green (grass), higher are brown (dirt/rock).
-                glm::vec4 color;
-                if (y < noiseHeight * 0.5f)
-                    color = glm::vec4(0.1f, 0.8f, 0.1f, 1.0f); // grass
-                else
-                    color = glm::vec4(0.5f, 0.35f, 0.2f, 1.0f); // dirt/rock
+                glm::vec4 color = glm::vec4(0.1f, 0.8f, 0.1f, 1.0f); // Grass color
+                
                 octree.Insert(pos, color);
             }
         }
     }
-
-
+    
     glm::vec3 minBound = glm::vec3(0, 0, 0);
     glm::vec3 maxBound = glm::vec3(octreeSize, octreeSize, octreeSize);
 
