@@ -16,8 +16,8 @@ float generateTerrainNoise(float x, float z) {
     float height = 0.0f;
     float freq = 0.02f;  // Lower base frequency for larger mountains
     float amp = 50.0f;   // Increased amplitude for taller peaks
-    float persistence = 0.4f; // Controls how quickly amplitudes decrease
-    int octaves = 6; // More octaves for extra detail
+    float persistence = 0.2f; // Controls how quickly amplitudes decrease
+    int octaves = 9; // More octaves for extra detail
 
     for (int i = 0; i < octaves; ++i) {
         height += std::sin(x * freq) * std::cos(z * freq) * amp;
@@ -144,37 +144,49 @@ int main() {
     };
 
     int octreeSize = 1000;     // Corrected to match 0-100 world range
-    int maxDepth = 8;
+    int maxDepth = 9;
     SparseVoxelOctree octree(octreeSize, maxDepth);
-    m_nodes.reserve(3000000);
+    m_nodes.reserve(500000);
     
-    float voxelSize = octreeSize / static_cast<float>(1 << maxDepth);
-    const int numSteps = 1 << maxDepth; // 2^maxDepth steps per axis
-    
-    // Integer-based iteration to avoid floating-point errors
-    for (int xi = 0; xi < numSteps; xi++) {
-        float x = xi * voxelSize;
-        for (int zi = 0; zi < numSteps; zi++) {
-            float z = zi * voxelSize;
-            float noiseHeight = generateTerrainNoise(x, z);
-            
-            // Ensure at least one voxel and prevent rounding errors
-            int ySteps = std::max(1, static_cast<int>(std::ceil((noiseHeight + 0.5f * voxelSize) / voxelSize)));
-    
-            for (int yi = 0; yi < ySteps; yi++) {
-                float y = yi * voxelSize;
-                
-                // Ensure y is exactly aligned with the voxel grid
-                y = std::round(y / voxelSize) * voxelSize;
-    
-                glm::vec3 pos(x, y, z);
-                glm::vec4 color = glm::vec4(0.1f, 0.8f, 0.1f, 1.0f); // Grass color
-                
-                octree.Insert(pos, color);
+    int numSteps = 1 << maxDepth;
+ int voxelSize = octreeSize / numSteps;
+
+ float rockHeight = octreeSize * 0.01f; // Below 30% height → Rock
+ float snowHeight = octreeSize * 0.013f; // Above 80% height → Snow
+
+ for (int xi = 0; xi < numSteps; xi++) {
+    int x = xi * voxelSize;
+    for (int zi = 0; zi < numSteps; zi++) {
+        int z = zi * voxelSize;
+        float noiseHeight = generateTerrainNoise(static_cast<float>(x), static_cast<float>(z));
+
+        int ySteps = std::max(1, static_cast<int>(std::ceil(noiseHeight / voxelSize)));
+
+        for (int yi = 0; yi < ySteps; yi++) {
+            int y = yi * voxelSize;
+
+            // Define base colors
+            glm::vec4 rockColor = glm::vec4(0.4f, 0.3f, 0.2f, 1.0f);  // Brownish rock
+            glm::vec4 midColor  = glm::vec4(0.7f, 0.7f, 0.7f, 1.0f);  // Icy gray (transition)
+            glm::vec4 snowColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);  // Pure white snow
+
+            // Calculate blend factor for smooth gradient
+            float t = glm::clamp((y - rockHeight) / (snowHeight - rockHeight), 0.0f, 1.0f);
+
+            // Blend from rock → ice → snow
+            glm::vec4 finalColor;
+            if (t < 0.5f) {
+                finalColor = glm::mix(rockColor, midColor, t * 2.0f); // Rock to ice
+            } else {
+                finalColor = glm::mix(midColor, snowColor, (t - 0.5f) * 2.0f); // Ice to snow
             }
+
+            glm::vec3 pos(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z));
+            octree.Insert(pos, finalColor);
         }
     }
-    
+}
+   
     glm::vec3 minBound = glm::vec3(0, 0, 0);
     glm::vec3 maxBound = glm::vec3(octreeSize, octreeSize, octreeSize);
 
