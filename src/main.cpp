@@ -10,8 +10,6 @@
 #include <vector>
 #include <cmath>
 
-#include <cmath>
-
 float generateTerrainNoise(float x, float z) {
     float height = 0.0f;
     float freq = 0.02f;  // Lower base frequency for larger mountains
@@ -144,7 +142,7 @@ int main() {
     };
 
     int octreeSize = 1000;     // Corrected to match 0-100 world range
-    int maxDepth = 9;
+    int maxDepth = 7;
     SparseVoxelOctree octree(octreeSize, maxDepth);
     m_nodes.reserve(500000);
     

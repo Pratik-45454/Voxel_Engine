@@ -42,6 +42,8 @@ bool intersectAABB(vec3 ro, vec3 rd, vec3 boxMin, vec3 boxMax, out float tEnter,
     return (tEnter <= tExit && tExit > 0.0);
 }
 
+
+
 // Traverse the octree with backtracking.
 vec4 traverseOctree(vec3 ro, vec3 rd) {
     float tEnterRoot, tExitRoot;
@@ -58,6 +60,8 @@ vec4 traverseOctree(vec3 ro, vec3 rd) {
     
     float bestT = MAX_DIST;
     vec4 hitColor = vec4(0.0);
+
+    
     
     // While there are nodes in the stack...
     while (stackSize > 0) {
